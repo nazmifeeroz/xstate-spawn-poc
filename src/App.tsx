@@ -1,50 +1,76 @@
-import './App.css'
+import { useMachine } from '@xstate/react'
+import React from 'react'
+import { ActorRef, assign, createMachine, sendParent, spawn } from 'xstate'
 
-import React, { useState } from 'react'
+interface parentContext {
+  count: number
+  incRef?: ActorRef<any>
+  decRef?: ActorRef<any>
+}
+
+const incrementMachine = createMachine({
+  initial: 'ready',
+  states: {
+    ready: {
+      on: {
+        CLICK: { actions: sendParent({ type: 'INCREMENT' }) },
+      },
+    },
+  },
+})
+
+const decrementMachine = createMachine({
+  initial: 'ready',
+  states: {
+    ready: {
+      on: {
+        CLICK: { actions: sendParent({ type: 'DECREMENT' }) },
+      },
+    },
+  },
+})
+
+const parentMachine = createMachine<parentContext>({
+  initial: 'idle',
+  context: {
+    count: 0,
+  },
+  states: {
+    idle: {
+      entry: assign<parentContext>({
+        incRef: () => spawn(incrementMachine),
+        decRef: () => spawn(decrementMachine),
+      }),
+      on: {
+        INCREMENT: {
+          actions: assign({ count: ({ count }) => count + 1 }),
+        },
+        DECREMENT: {
+          actions: assign({ count: ({ count }) => count - 1 }),
+        },
+      },
+    },
+  },
+})
+
+const IncDecButton = ({ onClick, label }: any) => {
+  return <button onClick={onClick}>{label}</button>
+}
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [current] = useMachine(parentMachine)
 
   return (
     <div className="App" data-testid="app-page">
-      <header className="App-header">
-        <p className="header">
-          🚀 Vite + React + Typescript 🤘 & <br />
-          Eslint 🔥+ Prettier
-        </p>
-
-        <div className="body">
-          <button onClick={() => setCount((count) => count + 1)}>
-            🪂 Click me : {count}
-          </button>
-
-          <p>
-            {' '}
-            Don&apos;t forgot to install Eslint and Prettier in Your Vscode.
-          </p>
-
-          <p>
-            Mess up the code in <code>App.tsx </code> and save the file.
-          </p>
-          <p>
-            <a
-              className="App-link"
-              href="https://reactjs.org"
-              target="_blank"
-              rel="noopener noreferrer">
-              Learn React
-            </a>
-            {' | '}
-            <a
-              className="App-link"
-              href="https://vitejs.dev/guide/features.html"
-              target="_blank"
-              rel="noopener noreferrer">
-              Vite Docs
-            </a>
-          </p>
-        </div>
-      </header>
+      Count: {current.context.count}
+      <IncDecButton
+        onClick={() => current.context.incRef?.send('CLICK')}
+        label="+"
+      />
+      <IncDecButton
+        onClick={() => current.context.decRef?.send('CLICK')}
+        label="-"
+      />
     </div>
   )
 }
